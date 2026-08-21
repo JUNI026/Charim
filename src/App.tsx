@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Bookmark, Check, ChefHat, Plus, Search, Sparkles, X } from 'lucide-react'
+import { ArrowRight, Plus, Search, Sparkles, X } from 'lucide-react'
+import { RecipeCard } from './components/RecipeCard'
+import { RecipeModal } from './components/RecipeModal'
 import { rankRecipes } from './recommend'
 import type { Recipe } from './types'
 
@@ -7,6 +9,7 @@ const suggestions = ['감자', '두부', '달걀', '양파', '돼지고기', '�
 
 function App() {
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
+  const [loadError, setLoadError] = useState(false)
   const [pantry, setPantry] = useState<string[]>(() => JSON.parse(localStorage.getItem('charim-pantry') || '[]'))
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('전체')
@@ -16,7 +19,7 @@ function App() {
   useEffect(() => {
     Promise.all(Array.from({ length: 10 }, (_, index) =>
       fetch(`${import.meta.env.BASE_URL}data/recipes-${index}.json`).then((response) => response.json() as Promise<Recipe[]>),
-    )).then((groups) => setAllRecipes(groups.flat()))
+    )).then((groups) => setAllRecipes(groups.flat())).catch(() => setLoadError(true))
   }, [])
   useEffect(() => localStorage.setItem('charim-pantry', JSON.stringify(pantry)), [pantry])
   useEffect(() => localStorage.setItem('charim-saved', JSON.stringify(saved)), [saved])
@@ -79,17 +82,12 @@ function App() {
             <label className="recipe-search"><Search size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="요리명 검색"/></label>
           </div>
           <div className="recipe-grid">
-            {allRecipes.length === 0 && <p>식탁을 준비하고 있어요…</p>}
+            {loadError && <p className="data-message">레시피를 불러오지 못했어요. 잠시 후 새로고침해 주세요.</p>}
+            {!loadError && allRecipes.length === 0 && <p className="data-message">식탁을 준비하고 있어요…</p>}
             {ranked.slice(0, 12).map((recipe, index) => (
-              <article className="recipe-card" key={recipe.id} onClick={() => setSelected(recipe)}>
-                <div className="image-wrap">
-                  <img src={recipe.image} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none' }}/>
-                  <span className="rank">{String(index + 1).padStart(2, '0')}</span>
-                  {pantry.length > 0 && <span className="match">{recipe.score}% 일치</span>}
-                  <button className="save" aria-label="저장" onClick={(event) => { event.stopPropagation(); setSaved(saved.includes(recipe.id) ? saved.filter((id) => id !== recipe.id) : [...saved, recipe.id]) }}><Bookmark size={18} fill={saved.includes(recipe.id) ? 'currentColor' : 'none'}/></button>
-                </div>
-                <div className="card-body"><span>{recipe.category || '한식'}</span><h3>{recipe.name}</h3><p>{recipe.ingredients.slice(0, 4).join(' · ')}</p><button>레시피 보기 <ArrowRight size={16}/></button></div>
-              </article>
+              <RecipeCard key={recipe.id} recipe={recipe} index={index} hasPantry={pantry.length > 0}
+                saved={saved.includes(recipe.id)} onOpen={() => setSelected(recipe)}
+                onToggleSaved={() => setSaved(saved.includes(recipe.id) ? saved.filter((id) => id !== recipe.id) : [...saved, recipe.id])}/>
             ))}
           </div>
         </section>
@@ -97,12 +95,7 @@ function App() {
 
       <footer><div className="wrap"><div className="brand"><span>차림</span> CHARIM</div><p>공공데이터로 더 나은 한 끼를 제안합니다.</p><small>Recipe data © 식품의약품안전처 공공데이터</small></div></footer>
 
-      {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}><section className="modal" onClick={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={() => setSelected(null)}><X/></button>
-        <img src={selected.image} alt=""/><div className="modal-content"><p className="eyebrow"><ChefHat size={15}/>{selected.category}</p><h2>{selected.name}</h2>
-        <div className="nutrition">{selected.calories && <span><b>{selected.calories}</b> kcal</span>}{selected.sodium && <span><b>{selected.sodium}</b> mg 나트륨</span>}</div>
-        <h3>준비할 재료</h3><p className="ingredients">{selected.ingredientsText}</p><h3>차리는 순서</h3><ol>{selected.steps.map((step, index) => <li key={index}><span>{index + 1}</span>{step}<Check size={17}/></li>)}</ol></div>
-      </section></div>}
+      {selected && <RecipeModal recipe={selected} onClose={() => setSelected(null)}/>}
     </>
   )
 }
