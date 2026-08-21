@@ -16,4 +16,9 @@ describe('recipe recommendation', () => {
     expect(rankRecipes([recipe], ['감자'])[0].matched).toContain('감자')
     expect(rankRecipes([recipe], ['감자'])[0].score).toBe(50)
   })
+
+  it('only returns recipes containing every required ingredient', () => {
+    expect(rankRecipes([recipe], [], '', ['감자'])).toHaveLength(1)
+    expect(rankRecipes([recipe], [], '', ['아보카도'])).toHaveLength(0)
+  })
 })
