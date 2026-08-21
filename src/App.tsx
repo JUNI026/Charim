@@ -36,6 +36,10 @@ function App() {
     if (next && !pantry.includes(next)) setPantry([...pantry, next])
   }
 
+  const showRecommendations = () => {
+    document.getElementById('recipes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <>
       <header className="nav wrap">
@@ -71,6 +75,9 @@ function App() {
               </div>
               <p className="hint">자주 찾는 재료</p>
               <div className="chips suggestions">{suggestions.filter((item) => !pantry.includes(item)).map((item) => <button key={item} onClick={() => addIngredient(item)}><Plus size={13}/>{item}</button>)}</div>
+              <button className="recommend-button" type="button" disabled={pantry.length === 0} onClick={showRecommendations}>
+                이 재료로 추천받기 <span>{pantry.length}</span><ArrowRight size={18}/>
+              </button>
             </div>
           </div>
         </section>
