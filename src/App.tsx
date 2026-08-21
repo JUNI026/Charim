@@ -6,11 +6,13 @@ import { rankRecipes } from './recommend'
 import type { Recipe } from './types'
 
 const suggestions = ['감자', '두부', '달걀', '양파', '돼지고기', '버섯', '애호박', '고추장']
+const primarySuggestions = ['아보카도', '두부', '달걀', '감자', '닭고기']
 
 function App() {
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [loadError, setLoadError] = useState(false)
   const [pantry, setPantry] = useState<string[]>(() => JSON.parse(localStorage.getItem('charim-pantry') || '[]'))
+  const [required, setRequired] = useState<string[]>(() => JSON.parse(localStorage.getItem('charim-required') || '[]'))
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('전체')
   const [selected, setSelected] = useState<Recipe | null>(null)
@@ -22,18 +24,22 @@ function App() {
     )).then((groups) => setAllRecipes(groups.flat())).catch(() => setLoadError(true))
   }, [])
   useEffect(() => localStorage.setItem('charim-pantry', JSON.stringify(pantry)), [pantry])
+  useEffect(() => localStorage.setItem('charim-required', JSON.stringify(required)), [required])
   useEffect(() => localStorage.setItem('charim-saved', JSON.stringify(saved)), [saved])
 
   const ranked = useMemo(() => rankRecipes(
     category === '전체' ? allRecipes : allRecipes.filter((recipe) => recipe.category === category),
     pantry,
     query,
-  ), [category, pantry, query])
+    required,
+  ), [category, pantry, query, required])
   const categories = ['전체', ...Array.from(new Set(allRecipes.map((recipe) => recipe.category))).filter(Boolean)]
 
-  const addIngredient = (value: string) => {
+  const addIngredient = (value: string, target: 'pantry' | 'required' = 'pantry') => {
     const next = value.trim()
-    if (next && !pantry.includes(next)) setPantry([...pantry, next])
+    if (!next) return
+    if (target === 'required' && !required.includes(next)) setRequired([...required, next])
+    if (target === 'pantry' && !pantry.includes(next)) setPantry([...pantry, next])
   }
 
   const showRecommendations = () => {
@@ -64,8 +70,20 @@ function App() {
 
         <section className="pantry-section" id="pantry">
           <div className="wrap pantry-grid">
-            <div><p className="section-number">01 / PANTRY</p><h2>지금 가진 재료는<br/>무엇인가요?</h2><p>여러 개를 선택할수록 더 정확한 메뉴를 추천해요.</p></div>
+            <div><p className="section-number">01 / PANTRY</p><h2>꼭 쓸 재료와<br/>가진 재료를 알려주세요.</h2><p>주재료는 반드시 포함하고, 냉장고 재료는 추천 순위를 더 정확하게 만들어요.</p></div>
             <div className="pantry-card">
+              <div className="ingredient-group required-group">
+                <div className="ingredient-label"><strong>꼭 사용할 주재료</strong><span>선택한 재료가 모두 포함된 요리만 보여드려요.</span></div>
+                <form onSubmit={(event) => { event.preventDefault(); const input = event.currentTarget.elements.namedItem('requiredIngredient') as HTMLInputElement; addIngredient(input.value, 'required'); input.value = '' }}>
+                  <Search size={20}/><input name="requiredIngredient" placeholder="예: 아보카도" autoComplete="off"/><button aria-label="주재료 추가"><Plus size={20}/></button>
+                </form>
+                <div className="chips selected-chips primary-chips">
+                  {required.length === 0 && <span className="empty">반드시 넣고 싶은 재료를 선택해 보세요.</span>}
+                  {required.map((item) => <button key={item} onClick={() => setRequired(required.filter((value) => value !== item))}>{item}<X size={14}/></button>)}
+                </div>
+                <div className="chips suggestions compact-suggestions">{primarySuggestions.filter((item) => !required.includes(item)).map((item) => <button key={item} onClick={() => addIngredient(item, 'required')}><Plus size={13}/>{item}</button>)}</div>
+              </div>
+              <div className="ingredient-label pantry-label"><strong>함께 쓸 수 있는 냉장고 재료</strong><span>많이 선택할수록 일치율이 정확해져요.</span></div>
               <form onSubmit={(event) => { event.preventDefault(); const input = event.currentTarget.elements.namedItem('ingredient') as HTMLInputElement; addIngredient(input.value); input.value = '' }}>
                 <Search size={20}/><input name="ingredient" placeholder="재료를 직접 입력하세요" autoComplete="off"/><button aria-label="추가"><Plus size={20}/></button>
               </form>
@@ -75,15 +93,15 @@ function App() {
               </div>
               <p className="hint">자주 찾는 재료</p>
               <div className="chips suggestions">{suggestions.filter((item) => !pantry.includes(item)).map((item) => <button key={item} onClick={() => addIngredient(item)}><Plus size={13}/>{item}</button>)}</div>
-              <button className="recommend-button" type="button" disabled={pantry.length === 0} onClick={showRecommendations}>
-                이 재료로 추천받기 <span>{pantry.length}</span><ArrowRight size={18}/>
+              <button className="recommend-button" type="button" disabled={pantry.length === 0 && required.length === 0} onClick={showRecommendations}>
+                이 재료로 추천받기 <span>{pantry.length + required.length}</span><ArrowRight size={18}/>
               </button>
             </div>
           </div>
         </section>
 
         <section className="recipes-section wrap" id="recipes">
-          <div className="section-head"><div><p className="section-number">02 / YOUR TABLE</p><h2>{pantry.length ? '오늘 이렇게 차려보세요' : '천천히 둘러보세요'}</h2></div><div className="result-count"><strong>{ranked.length}</strong>개의 레시피</div></div>
+          <div className="section-head"><div><p className="section-number">02 / YOUR TABLE</p><h2>{required.length ? `${required.join(' · ')}로 차리는 요리` : pantry.length ? '오늘 이렇게 차려보세요' : '천천히 둘러보세요'}</h2></div><div className="result-count"><strong>{ranked.length}</strong>개의 레시피</div></div>
           <div className="toolbar">
             <div className="category-tabs">{categories.slice(0, 8).map((item) => <button className={category === item ? 'active' : ''} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div>
             <label className="recipe-search"><Search size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="요리명 검색"/></label>
@@ -91,6 +109,7 @@ function App() {
           <div className="recipe-grid">
             {loadError && <p className="data-message">레시피를 불러오지 못했어요. 잠시 후 새로고침해 주세요.</p>}
             {!loadError && allRecipes.length === 0 && <p className="data-message">식탁을 준비하고 있어요…</p>}
+            {!loadError && allRecipes.length > 0 && ranked.length === 0 && <p className="data-message">{required.length ? `${required.join(' · ')} 재료가 모두 들어간 레시피를 찾지 못했어요. 주재료를 하나 줄이거나 다른 표현으로 입력해 보세요.` : '조건에 맞는 레시피를 찾지 못했어요. 검색어나 재료를 바꿔보세요.'}</p>}
             {ranked.slice(0, 12).map((recipe, index) => (
               <RecipeCard key={recipe.id} recipe={recipe} index={index} hasPantry={pantry.length > 0}
                 saved={saved.includes(recipe.id)} onOpen={() => setSelected(recipe)}
