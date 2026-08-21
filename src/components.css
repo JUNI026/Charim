@@ -1,0 +1,12 @@
+.matched-reason {
+  color: var(--ink) !important;
+  font-weight: 600;
+}
+
+.data-message {
+  grid-column: 1 / -1;
+  padding: 36px;
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  text-align: center;
+}
