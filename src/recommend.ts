@@ -10,12 +10,17 @@ export function normalizeIngredient(value: string) {
     .trim()
 }
 
-export function rankRecipes(recipes: Recipe[], pantry: string[], query = ''): RankedRecipe[] {
+export function rankRecipes(recipes: Recipe[], pantry: string[], query = '', required: string[] = []): RankedRecipe[] {
   const selected = pantry.map(normalizeIngredient).filter(Boolean)
+  const mustInclude = required.map(normalizeIngredient).filter(Boolean)
   const needle = query.trim().toLowerCase()
 
   return recipes
     .filter((recipe) => !needle || `${recipe.name} ${recipe.ingredientsText}`.toLowerCase().includes(needle))
+    .filter((recipe) => mustInclude.every((requiredItem) =>
+      recipe.ingredients.some((item) => item.includes(requiredItem) || requiredItem.includes(item))
+      || recipe.ingredientsText.includes(requiredItem),
+    ))
     .map((recipe) => {
       const useful = recipe.ingredients.filter((item) => !IGNORE.has(item)).slice(0, 10)
       const matched = useful.filter((item) => selected.some((own) => item.includes(own) || own.includes(item)))
